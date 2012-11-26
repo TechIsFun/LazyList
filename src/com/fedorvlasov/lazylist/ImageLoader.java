@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -14,6 +13,7 @@ import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -27,12 +27,16 @@ public class ImageLoader {
     private Map<ImageView, String> imageViews=Collections.synchronizedMap(new WeakHashMap<ImageView, String>());
     ExecutorService executorService; 
     
-    public ImageLoader(Context context){
-        fileCache=new FileCache(context);
-        executorService=Executors.newFixedThreadPool(5);
+    final int stub_id;
+    
+    public ImageLoader(Context context, int stubId){
+    	stub_id = stubId;
+    	
+        fileCache = FileCache.getInstance(context);
+        
+        executorService = Executors.newFixedThreadPool(5);
     }
     
-    final int stub_id=R.drawable.stub;
     public void DisplayImage(String url, ImageView imageView)
     {
         imageViews.put(imageView, url);
@@ -52,12 +56,12 @@ public class ImageLoader {
         executorService.submit(new PhotosLoader(p));
     }
     
-    private Bitmap getBitmap(String url) 
+    private Bitmap getBitmap(String url, int height) 
     {
         File f=fileCache.getFile(url);
         
         //from SD cache
-        Bitmap b = decodeFile(f);
+        Bitmap b = decodeFile(f, height);
         if(b!=null)
             return b;
         
@@ -73,10 +77,10 @@ public class ImageLoader {
             OutputStream os = new FileOutputStream(f);
             Utils.CopyStream(is, os);
             os.close();
-            bitmap = decodeFile(f);
+            bitmap = decodeFile(f, height);
             return bitmap;
         } catch (Throwable ex){
-           ex.printStackTrace();
+           //ex.printStackTrace();
            if(ex instanceof OutOfMemoryError)
                memoryCache.clear();
            return null;
@@ -84,17 +88,16 @@ public class ImageLoader {
     }
 
     //decodes image and scales it to reduce memory consumption
-    private Bitmap decodeFile(File f){
+    private Bitmap decodeFile(File f, int height){
         try {
             //decode image size
             BitmapFactory.Options o = new BitmapFactory.Options();
             o.inJustDecodeBounds = true;
-            FileInputStream stream1=new FileInputStream(f);
-            BitmapFactory.decodeStream(stream1,null,o);
-            stream1.close();
+            BitmapFactory.decodeStream(new FileInputStream(f),null,o);
             
             //Find the correct scale value. It should be the power of 2.
-            final int REQUIRED_SIZE=70;
+            //final int REQUIRED_SIZE=70;
+            final int REQUIRED_SIZE=height;
             int width_tmp=o.outWidth, height_tmp=o.outHeight;
             int scale=1;
             while(true){
@@ -108,15 +111,8 @@ public class ImageLoader {
             //decode with inSampleSize
             BitmapFactory.Options o2 = new BitmapFactory.Options();
             o2.inSampleSize=scale;
-            FileInputStream stream2=new FileInputStream(f);
-            Bitmap bitmap=BitmapFactory.decodeStream(stream2, null, o2);
-            stream2.close();
-            return bitmap;
-        } catch (FileNotFoundException e) {
-        } 
-        catch (IOException e) {
-            e.printStackTrace();
-        }
+            return BitmapFactory.decodeStream(new FileInputStream(f), null, o2);
+        } catch (FileNotFoundException e) {}
         return null;
     }
     
@@ -137,21 +133,16 @@ public class ImageLoader {
             this.photoToLoad=photoToLoad;
         }
         
-        @Override
-        public void run() {
-            try{
-                if(imageViewReused(photoToLoad))
-                    return;
-                Bitmap bmp=getBitmap(photoToLoad.url);
-                memoryCache.put(photoToLoad.url, bmp);
-                if(imageViewReused(photoToLoad))
-                    return;
-                BitmapDisplayer bd=new BitmapDisplayer(bmp, photoToLoad);
-                Activity a=(Activity)photoToLoad.imageView.getContext();
-                a.runOnUiThread(bd);
-            }catch(Throwable th){
-                th.printStackTrace();
-            }
+		public void run() {
+            if(imageViewReused(photoToLoad))
+                return;
+            Bitmap bmp=getBitmap(photoToLoad.url, photoToLoad.imageView.getLayoutParams().height);
+            memoryCache.put(photoToLoad.url, bmp);
+            if(imageViewReused(photoToLoad))
+                return;
+            BitmapDisplayer bd=new BitmapDisplayer(bmp, photoToLoad);
+            Activity a=(Activity)photoToLoad.imageView.getContext();
+            a.runOnUiThread(bd);
         }
     }
     
@@ -168,7 +159,8 @@ public class ImageLoader {
         Bitmap bitmap;
         PhotoToLoad photoToLoad;
         public BitmapDisplayer(Bitmap b, PhotoToLoad p){bitmap=b;photoToLoad=p;}
-        public void run()
+        @Override
+		public void run()
         {
             if(imageViewReused(photoToLoad))
                 return;
@@ -179,9 +171,12 @@ public class ImageLoader {
         }
     }
 
-    public void clearCache() {
+    public void clearMemoryCache() {
         memoryCache.clear();
-        fileCache.clear();
     }
 
+    public void clear() {
+    	clearMemoryCache();
+    	fileCache.clear();
+    }
 }
