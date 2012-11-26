@@ -18,7 +18,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.main);
         
         list=(ListView)findViewById(R.id.list);
-        adapter=new LazyAdapter(this, mStrings);
+        adapter= new LazyAdapter(this, mStrings, new ImageLoader(getApplicationContext(), R.id.image));
         list.setAdapter(adapter);
         
         Button b=(Button)findViewById(R.id.button1);
@@ -32,10 +32,17 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
     
+    @Override
+    public void onLowMemory() {
+    	super.onLowMemory();
+    	
+    	adapter.getImageLoader().clearMemoryCache();
+    }
+    
     public OnClickListener listener=new OnClickListener(){
         @Override
         public void onClick(View arg0) {
-            adapter.imageLoader.clearCache();
+            adapter.getImageLoader().clearMemoryCache();
             adapter.notifyDataSetChanged();
         }
     };

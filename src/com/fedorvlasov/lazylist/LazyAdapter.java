@@ -14,28 +14,38 @@ public class LazyAdapter extends BaseAdapter {
     private Activity activity;
     private String[] data;
     private static LayoutInflater inflater=null;
-    public ImageLoader imageLoader; 
     
-    public LazyAdapter(Activity a, String[] d) {
+    private final ImageLoader imageLoader; 
+    
+    public LazyAdapter(Activity a, String[] d, ImageLoader imageLoader) {
         activity = a;
         data=d;
         inflater = (LayoutInflater)activity.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-        imageLoader=new ImageLoader(activity.getApplicationContext());
+
+        this.imageLoader = imageLoader;
     }
 
-    public int getCount() {
+    public ImageLoader getImageLoader() {
+    	return imageLoader;
+    }
+    
+    @Override
+	public int getCount() {
         return data.length;
     }
 
-    public Object getItem(int position) {
+    @Override
+	public Object getItem(int position) {
         return position;
     }
 
-    public long getItemId(int position) {
+    @Override
+	public long getItemId(int position) {
         return position;
     }
     
-    public View getView(int position, View convertView, ViewGroup parent) {
+    @Override
+	public View getView(int position, View convertView, ViewGroup parent) {
         View vi=convertView;
         if(convertView==null)
             vi = inflater.inflate(R.layout.item, null);
